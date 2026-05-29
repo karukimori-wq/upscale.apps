@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STAMP SCALE — LINEスタンプ用リサイザー</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --border: #2a2a30;
+    --accent: #00e5a0;
+    --accent2: #ff6b6b;
+    --text: #f0f0f0;
+    --muted: #888;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 800px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+
+  .logo span {
+    color: var(--accent);
+  }
+
+  .tagline {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 60px 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,229,160,0.05) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+  }
+
+  .drop-zone:hover::after, .drop-zone.drag-over::after {
+    opacity: 1;
+  }
+
+  .drop-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    display: block;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .drop-text {
+    font-size: 1rem;
+    color: var(--muted);
+  }
+
+  .drop-text strong {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  #fileInput { display: none; }
+
+  /* Settings */
+  .settings {
+    margin-top: 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    display: none;
+  }
+
+  .settings.visible { display: block; }
+
+  .settings-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .preset-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    color: var(--text);
+    cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: left;
+  }
+
+  .preset-btn:hover {
+    border-color: var(--accent);
+  }
+
+  .preset-btn.active {
+    border-color: var(--accent);
+    background: rgba(0,229,160,0.08);
+  }
+
+  .preset-label {
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .preset-size {
+    font-size: 1.1rem;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+  }
+
+  .preset-desc {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .custom-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .custom-row label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .custom-row input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    width: 90px;
+    transition: border-color 0.2s;
+  }
+
+  .custom-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  /* Preview */
+  .preview-area {
+    margin-top: 32px;
+    display: none;
+  }
+
+  .preview-area.visible { display: block; }
+
+  .preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .preview-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+  }
+
+  .preview-card-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    margin-bottom: 14px;
+  }
+
+  .preview-img-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    background: repeating-conic-gradient(#1e1e22 0% 25%, #16161a 0% 50%) 0 0 / 16px 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .preview-img-wrap img, .preview-img-wrap canvas {
+    max-width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .preview-info {
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  .preview-info strong {
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+  }
+
+  /* Action */
+  .action-row {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 32px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: transform 0.15s, box-shadow 0.15s;
+    flex: 1;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,229,160,0.3);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  /* Status */
+  .status-bar {
+    margin-top: 20px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    display: none;
+  }
+
+  .status-bar.success {
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.3);
+    color: var(--accent);
+    display: block;
+  }
+
+  .status-bar.warning {
+    background: rgba(255,107,107,0.1);
+    border: 1px solid rgba(255,107,107,0.3);
+    color: var(--accent2);
+    display: block;
+  }
+
+  /* Quality toggle */
+  .quality-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    align-items: center;
+  }
+
+  .quality-row label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-right: 4px;
+  }
+
+  .toggle-group {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .toggle-group button {
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .toggle-group button.active {
+    background: var(--accent);
+    color: #000;
+  }
+
+  footer {
+    margin-top: 60px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.75rem;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 480px) {
+    .preview-grid { grid-template-columns: 1fr; }
+    .preset-grid { grid-template-columns: 1fr 1fr; }
+    .custom-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <div class="logo">STAMP<span>SCALE</span></div>
+    <p class="tagline">LINEスタンプ用 画像リサイザー</p>
+  </header>
+
+  <!-- Drop Zone -->
+  <div class="drop-zone" id="dropZone">
+    <span class="drop-icon">🖼️</span>
+    <div class="drop-text">
+      <strong>クリックまたはドラッグ</strong>で画像をアップロード<br>
+      PNG / JPEG / GIF / WebP 対応
+    </div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <!-- Settings -->
+  <div class="settings" id="settings">
+    <div class="settings-title">📐 出力サイズを選択</div>
+    <div class="preset-grid">
+      <button class="preset-btn active" data-w="370" data-h="320">
+        <span class="preset-label">メインスタンプ</span>
+        <span class="preset-size">370 × 320</span>
+        <span class="preset-desc">標準スタンプ（必須）</span>
+      </button>
+      <button class="preset-btn" data-w="240" data-h="240">
+        <span class="preset-label">スタンプキー画像</span>
+        <span class="preset-size">240 × 240</span>
+        <span class="preset-desc">ショップ一覧表示用</span>
+      </button>
+      <button class="preset-btn" data-w="96" data-h="74">
+        <span class="preset-label">トークアイコン</span>
+        <span class="preset-size">96 × 74</span>
+        <span class="preset-desc">トーク画面小表示</span>
+      </button>
+      <button class="preset-btn" data-w="0" data-h="0">
+        <span class="preset-label">カスタム</span>
+        <span class="preset-size">自由設定</span>
+        <span class="preset-desc">任意のサイズ</span>
+      </button>
+    </div>
+
+    <div class="custom-row" id="customRow" style="display:none">
+      <label>W</label>
+      <input type="number" id="customW" placeholder="370" value="370" min="1" max="4000">
+      <label>H</label>
+      <input type="number" id="customH" placeholder="320" value="320" min="1" max="4000">
+      <label>px</label>
+    </div>
+
+    <div class="quality-row">
+      <label>補間品質：</label>
+      <div class="toggle-group">
+        <button class="active" id="qSmooth" onclick="setQuality('smooth')">スムーズ</button>
+        <button id="qPixelated" onclick="setQuality('pixelated')">ピクセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-area" id="previewArea">
+    <div class="preview-grid">
+      <div class="preview-card">
+        <div class="preview-card-label">元画像</div>
+        <div class="preview-img-wrap">
+          <img id="originalPreview" src="" alt="original">
+        </div>
+        <div class="preview-info" id="originalInfo">—</div>
+      </div>
+      <div class="preview-card">
+        <div class="preview-card-label">変換後</div>
+        <div class="preview-img-wrap">
+          <canvas id="outputCanvas"></canvas>
+        </div>
+        <div class="preview-info" id="outputInfo">—</div>
+      </div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn-primary" onclick="downloadImage()">⬇ PNGダウンロード</button>
+      <button class="btn-secondary" onclick="resetAll()">リセット</button>
+    </div>
+    <div class="status-bar" id="statusBar"></div>
+  </div>
+
+  <footer>画像はすべてブラウザ内で処理されます。サーバーへの送信なし。</footer>
+</div>
+
+<canvas id="processingCanvas" style="display:none"></canvas>
+
+<script>
+  let currentFile = null;
+  let currentImg = null;
+  let targetW = 370, targetH = 320;
+  let quality = 'smooth';
+
+  // Drop zone
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) loadFile(file);
+  });
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(file) {
+    currentFile = file;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      currentImg = img;
+      document.getElementById('originalPreview').src = url;
+      const kb = (file.size / 1024).toFixed(1);
+      document.getElementById('originalInfo').innerHTML = `<strong>${img.naturalWidth} × ${img.naturalHeight}px</strong> / ${kb}KB`;
+      document.getElementById('settings').classList.add('visible');
+      document.getElementById('previewArea').classList.add('visible');
+      renderOutput();
+    };
+    img.src = url;
+  }
+
+  // Presets
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const w = parseInt(btn.dataset.w);
+      const h = parseInt(btn.dataset.h);
+      const customRow = document.getElementById('customRow');
+      if (w === 0) {
+        customRow.style.display = 'flex';
+        targetW = parseInt(document.getElementById('customW').value) || 370;
+        targetH = parseInt(document.getElementById('customH').value) || 320;
+      } else {
+        customRow.style.display = 'none';
+        targetW = w; targetH = h;
+      }
+      if (currentImg) renderOutput();
+    });
+  });
+
+  document.getElementById('customW').addEventListener('input', e => { targetW = parseInt(e.target.value) || 370; if (currentImg) renderOutput(); });
+  document.getElementById('customH').addEventListener('input', e => { targetH = parseInt(e.target.value) || 320; if (currentImg) renderOutput(); });
+
+  function setQuality(q) {
+    quality = q;
+    document.getElementById('qSmooth').classList.toggle('active', q === 'smooth');
+    document.getElementById('qPixelated').classList.toggle('active', q === 'pixelated');
+    if (currentImg) renderOutput();
+  }
+
+  function renderOutput() {
+    if (!currentImg || !targetW || !targetH) return;
+
+    const procCanvas = document.getElementById('processingCanvas');
+    procCanvas.width = targetW;
+    procCanvas.height = targetH;
+    const ctx = procCanvas.getContext('2d');
+    ctx.imageSmoothingEnabled = quality === 'smooth';
+    ctx.imageSmoothingQuality = 'high';
+    ctx.clearRect(0, 0, targetW, targetH);
+    ctx.drawImage(currentImg, 0, 0, targetW, targetH);
+
+    // Mirror to display canvas (scaled for preview)
+    const outCanvas = document.getElementById('outputCanvas');
+    const maxDisplay = 200;
+    const scale = Math.min(maxDisplay / targetW, maxDisplay / targetH, 1);
+    outCanvas.width = Math.round(targetW * scale);
+    outCanvas.height = Math.round(targetH * scale);
+    const octx = outCanvas.getContext('2d');
+    octx.drawImage(procCanvas, 0, 0, outCanvas.width, outCanvas.height);
+
+    // Size estimate
+    procCanvas.toBlob(blob => {
+      const kb = (blob.size / 1024).toFixed(1);
+      const warn = blob.size > 1024 * 1024;
+      document.getElementById('outputInfo').innerHTML =
+        `<strong>${targetW} × ${targetH}px</strong> / 約${kb}KB${warn ? ' <span style="color:var(--accent2)">⚠ 1MB超</span>' : ''}`;
+      const bar = document.getElementById('statusBar');
+      if (warn) {
+        bar.className = 'status-bar warning';
+        bar.textContent = '⚠ ファイルサイズが1MBを超えています。LINEスタンプの上限は1MBです。';
+      } else {
+        bar.className = 'status-bar success';
+        bar.textContent = '✓ LINEスタンプのサイズ要件を満たしています。';
+      }
+    }, 'image/png');
+  }
+
+  function downloadImage() {
+    if (!currentImg) return;
+    const procCanvas = document.getElementById('processingCanvas');
+    procCanvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const base = currentFile.name.replace(/\.[^.]+$/, '');
+      a.download = `${base}_${targetW}x${targetH}.png`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
+  function resetAll() {
+    currentFile = null; currentImg = null;
+    document.getElementById('fileInput').value = '';
+    document.getElementById('originalPreview').src = '';
+    document.getElementById('settings').classList.remove('visible');
+    document.getElementById('previewArea').classList.remove('visible');
+    document.getElementById('statusBar').className = 'status-bar';
+  }
+</script>
+</body>
+</html>
